@@ -7,7 +7,7 @@ import ProfileForm from "./components/ProfileForm";
 import ProjectsManager from "./components/ProjectsManager";
 import ExperienceManager from "./components/ExperienceManager";
 import EducationManager from "./components/EducationManager";
-import ResumeUpload from "./components/ResumeUpload";
+import ResumeManager from "./components/ResumeManager";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
@@ -126,7 +126,7 @@ export default function DashboardPage() {
             </TabsContent>
 
             <TabsContent value="resume" className="mt-4">
-              <ResumeUpload />
+              <ResumeManager />
             </TabsContent>
           </Tabs>
         </motion.div>
