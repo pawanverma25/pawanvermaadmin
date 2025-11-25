@@ -36,12 +36,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Edit, Trash2, GraduationCap } from "lucide-react";
-import { Education } from "@/types/portfolio";
+import { Plus, Edit, Trash2 } from "lucide-react";
+import { Education } from "@/types/api";
+import { educationsApi } from "@/lib/api/educations";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/components/ui/toast";
 
 const educationSchema = z.object({
   institution: z.string().min(2, "Institution name must be at least 2 characters"),
@@ -49,41 +52,32 @@ const educationSchema = z.object({
   field: z.string().min(2, "Field of study must be at least 2 characters"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().optional(),
-  current: z.boolean(),
+  isCurrent: z.boolean().default(false),
   description: z.string().optional(),
   location: z.string().optional(),
+  displayOrder: z.coerce
+    .number({
+      required_error: "Display order is required",
+      invalid_type_error: "Display order must be a number",
+    })
+    .int("Display order must be an integer")
+    .nonnegative("Display order must be positive"),
 });
 
 type EducationFormValues = z.infer<typeof educationSchema>;
 
-const initialEducations: Education[] = [
-  {
-    id: "1",
-    institution: "University of Technology",
-    degree: "Bachelor of Science",
-    field: "Computer Science",
-    startDate: "2018-09",
-    endDate: "2022-05",
-    current: false,
-    description: "Graduated with honors. Focused on software engineering and web development.",
-    location: "San Francisco, CA",
-  },
-  {
-    id: "2",
-    institution: "Online Learning Platform",
-    degree: "Master of Science",
-    field: "Data Science",
-    startDate: "2023-01",
-    current: true,
-    description: "Pursuing advanced studies in machine learning and data analytics.",
-    location: "Remote",
-  },
-];
-
 export default function EducationManager() {
-  const [educations, setEducations] = useState<Education[]>(initialEducations);
+  const [educations, setEducations] = useState<Education[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEducation, setEditingEducation] = useState<Education | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const userId = user?.id ? Number(user.id) : null;
 
   const form = useForm<EducationFormValues>({
     resolver: zodResolver(educationSchema),
@@ -93,36 +87,93 @@ export default function EducationManager() {
       field: "",
       startDate: "",
       endDate: "",
-      current: false,
+      isCurrent: false,
       description: "",
       location: "",
+      displayOrder: 0,
     },
   });
 
-  const onSubmit = (data: EducationFormValues) => {
-    const educationData: Education = {
-      id: editingEducation?.id || Date.now().toString(),
+  const loadEducations = useCallback(async () => {
+    if (!userId || Number.isNaN(userId)) {
+      return;
+    }
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await educationsApi.list({ userId });
+      setEducations(response.content);
+    } catch (err) {
+      console.error("Failed to load educations:", err);
+      setError("Unable to load education entries. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    loadEducations();
+  }, [loadEducations]);
+
+  const onSubmit = async (data: EducationFormValues) => {
+    if (!userId || Number.isNaN(userId)) {
+      toast({
+        title: "Missing user",
+        description: "Unable to detect user ID for education requests.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload = {
+      userId,
       institution: data.institution,
       degree: data.degree,
       field: data.field,
       startDate: data.startDate,
-      endDate: data.current ? undefined : data.endDate,
-      current: data.current,
+      endDate: data.isCurrent ? null : data.endDate || null,
+      isCurrent: data.isCurrent,
       description: data.description || undefined,
       location: data.location || undefined,
+      displayOrder: data.displayOrder,
     };
 
-    if (editingEducation) {
-      setEducations(
-        educations.map((e) => (e.id === editingEducation.id ? educationData : e))
-      );
-    } else {
-      setEducations([...educations, educationData]);
-    }
+    try {
+      setIsSaving(true);
+      let updated: Education;
+      if (editingEducation) {
+        updated = await educationsApi.update(editingEducation.id, payload);
+        setEducations((prev) =>
+          prev.map((edu) => (edu.id === editingEducation.id ? updated : edu))
+        );
+        toast({
+          title: "Education updated",
+          description: `${updated.institution} was updated successfully.`,
+          variant: "success",
+        });
+      } else {
+        updated = await educationsApi.create(payload);
+        setEducations((prev) => [updated, ...prev]);
+        toast({
+          title: "Education added",
+          description: `${updated.institution} was added successfully.`,
+          variant: "success",
+        });
+      }
 
-    form.reset();
-    setIsDialogOpen(false);
-    setEditingEducation(null);
+      form.reset();
+      setIsDialogOpen(false);
+      setEditingEducation(null);
+    } catch (err) {
+      console.error("Failed to save education:", err);
+      toast({
+        title: "Save failed",
+        description: "Unable to save education entry. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleEdit = (education: Education) => {
@@ -133,15 +184,34 @@ export default function EducationManager() {
       field: education.field,
       startDate: education.startDate,
       endDate: education.endDate || "",
-      current: education.current,
+      isCurrent: education.isCurrent,
       description: education.description || "",
       location: education.location || "",
+      displayOrder: education.displayOrder,
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setEducations(educations.filter((e) => e.id !== id));
+  const handleDelete = async (id: number) => {
+    try {
+      setDeletingId(id);
+      await educationsApi.delete(id);
+      setEducations((prev) => prev.filter((e) => e.id !== id));
+      toast({
+        title: "Education deleted",
+        description: "The education entry has been removed.",
+        variant: "success",
+      });
+    } catch (err) {
+      console.error("Failed to delete education:", err);
+      toast({
+        title: "Delete failed",
+        description: "Unable to delete the selected education entry.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleAddNew = () => {
@@ -236,7 +306,7 @@ export default function EducationManager() {
                             <FormItem>
                               <FormLabel>Start Date</FormLabel>
                               <FormControl>
-                                <Input {...field} type="month" />
+                              <Input {...field} type="date" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -251,8 +321,8 @@ export default function EducationManager() {
                               <FormControl>
                                 <Input
                                   {...field}
-                                  type="month"
-                                  disabled={form.watch("current")}
+                                type="date"
+                                disabled={form.watch("isCurrent")}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -262,7 +332,25 @@ export default function EducationManager() {
                       </div>
                       <FormField
                         control={form.control}
-                        name="current"
+                        name="displayOrder"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Display Order</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                type="number"
+                                min={0}
+                                placeholder="0"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="isCurrent"
                         render={({ field }) => (
                           <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                             <FormControl>
@@ -317,9 +405,14 @@ export default function EducationManager() {
                         </Button>
                         <Button
                           type="submit"
+                          disabled={isSaving}
                           className="bg-primary text-primary-foreground hover:bg-primary/90"
                         >
-                          {editingEducation ? "Update" : "Add"} Education
+                          {isSaving
+                            ? "Saving..."
+                            : editingEducation
+                              ? "Update Education"
+                              : "Add Education"}
                         </Button>
                       </DialogFooter>
                     </form>
@@ -329,6 +422,11 @@ export default function EducationManager() {
             </div>
           </CardHeader>
           <CardContent className="pt-3">
+            {error && (
+              <div className="mb-3 rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <div className="rounded border border-border/30 overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -337,12 +435,27 @@ export default function EducationManager() {
                     <TableHead className="py-2 text-xs font-medium min-w-[120px] hidden sm:table-cell">Degree</TableHead>
                     <TableHead className="py-2 text-xs font-medium min-w-[120px] hidden md:table-cell">Field</TableHead>
                     <TableHead className="py-2 text-xs font-medium min-w-[120px]">Duration</TableHead>
+                    <TableHead className="py-2 text-xs font-medium min-w-[120px] hidden lg:table-cell">Location</TableHead>
+                    <TableHead className="py-2 text-xs font-medium min-w-[80px] hidden lg:table-cell">Order</TableHead>
                     <TableHead className="py-2 text-xs font-medium text-right min-w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   <AnimatePresence>
-                    {educations.map((education) => (
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
+                          Loading education entries...
+                        </TableCell>
+                      </TableRow>
+                    ) : educations.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
+                          No education entries found. Add your first entry.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      educations.map((education) => (
                       <motion.tr
                         key={education.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -358,11 +471,17 @@ export default function EducationManager() {
                         <TableCell className="py-3 text-sm min-w-[120px] hidden md:table-cell break-words">{education.field}</TableCell>
                         <TableCell className="py-3 text-sm min-w-[120px]">
                           {education.startDate} -{" "}
-                          {education.current ? (
+                          {education.isCurrent ? (
                             <span className="text-accent">Present</span>
                           ) : (
                             education.endDate
                           )}
+                        </TableCell>
+                        <TableCell className="py-3 text-sm min-w-[120px] hidden lg:table-cell">
+                          {education.location || "—"}
+                        </TableCell>
+                        <TableCell className="py-3 text-sm min-w-[80px] hidden lg:table-cell">
+                          {education.displayOrder}
                         </TableCell>
                         <TableCell className="py-3 text-right min-w-[100px]">
                           <div className="flex justify-end gap-1">
@@ -379,13 +498,15 @@ export default function EducationManager() {
                               size="sm"
                               onClick={() => handleDelete(education.id)}
                               className="h-7 w-7 p-0"
+                              disabled={deletingId === education.id}
                             >
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </div>
                         </TableCell>
                       </motion.tr>
-                    ))}
+                    ))
+                    )}
                   </AnimatePresence>
                 </TableBody>
               </Table>

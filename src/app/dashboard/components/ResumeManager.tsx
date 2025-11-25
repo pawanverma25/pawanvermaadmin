@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload,
@@ -32,26 +32,54 @@ import {
   Calendar,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-
-interface ResumeData {
-  file: File;
-  fileName: string;
-  lastUpdated: Date;
-  fileSize: number;
-  url: string;
-}
+import { resumesApi } from "@/lib/api/resumes";
+import { Resume } from "@/types/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ResumeManager() {
-  const [resume, setResume] = useState<ResumeData | null>(null);
+  const [resume, setResume] = useState<Resume | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isActive, setIsActive] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  const userId = user?.id ? Number(user.id) : null;
+
+  const fetchResume = useCallback(async () => {
+    if (!userId || Number.isNaN(userId)) {
+      return;
+    }
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await resumesApi.list({ page: 0, size: 1, userId });
+      setResume(response.content[0] ?? null);
+    } catch (err) {
+      console.error("Failed to load resume:", err);
+      setError("Unable to load resume. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    fetchResume();
+  }, [fetchResume]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!userId || Number.isNaN(userId)) {
+      toast({
+        title: "Missing user",
+        description: "Unable to detect user ID for resume upload.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Validate file type
     const validTypes = [".pdf", ".doc", ".docx"];
@@ -77,37 +105,27 @@ export default function ResumeManager() {
     }
 
     setIsUploading(true);
-    setIsActive(true);
-
-    // Simulate async upload
-    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     try {
-      const mockUrl = URL.createObjectURL(file);
-      const resumeData: ResumeData = {
-        file,
-        fileName: file.name,
-        lastUpdated: new Date(),
-        fileSize: file.size,
-        url: mockUrl,
-      };
-
-      setResume(resumeData);
-      setIsUploading(false);
-
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("userId", String(userId));
+      const uploaded = await resumesApi.upload(formData);
+      setResume(uploaded);
       toast({
         title: "Resume uploaded successfully",
         description: `${file.name} has been uploaded.`,
         variant: "success",
       });
     } catch (error) {
-      setIsUploading(false);
-      setIsActive(false);
+      console.error("Upload failed:", error);
       toast({
         title: "Upload failed",
         description: "An error occurred while uploading the resume.",
         variant: "destructive",
       });
+    } finally {
+      setIsUploading(false);
     }
 
     // Reset input
@@ -115,35 +133,31 @@ export default function ResumeManager() {
   };
 
   const handleDownload = async () => {
-    if (!resume) return;
+    if (!resume?.filePath) return;
 
     setIsDownloading(true);
-
-    // Simulate async download
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
     try {
       const link = document.createElement("a");
-      link.href = resume.url;
-      link.download = resume.fileName;
+      link.href = resume.filePath;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      setIsDownloading(false);
-
       toast({
         title: "Download started",
         description: `${resume.fileName} is being downloaded.`,
         variant: "success",
       });
     } catch (error) {
-      setIsDownloading(false);
+      console.error("Download failed:", error);
       toast({
         title: "Download failed",
         description: "An error occurred while downloading the resume.",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -151,32 +165,23 @@ export default function ResumeManager() {
     if (!resume) return;
 
     setIsDeleting(true);
-
-    // Simulate async delete
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
     try {
-      // Revoke object URL to free memory
-      if (resume.url) {
-        URL.revokeObjectURL(resume.url);
-      }
-
+      await resumesApi.delete(resume.id);
       setResume(null);
-      setIsActive(false);
-      setIsDeleting(false);
-
       toast({
         title: "Resume deleted",
         description: "The resume has been successfully deleted.",
         variant: "success",
       });
     } catch (error) {
-      setIsDeleting(false);
+      console.error("Delete failed:", error);
       toast({
         title: "Delete failed",
         description: "An error occurred while deleting the resume.",
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -196,6 +201,10 @@ export default function ResumeManager() {
     }).format(date);
   };
 
+  const formattedResumeDate = resume
+    ? formatDate(new Date(resume.uploadedAt))
+    : "";
+
   return (
     <div className="space-y-4">
       <motion.div
@@ -211,8 +220,25 @@ export default function ResumeManager() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-3">
+            {error && (
+              <div className="rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <AnimatePresence mode="wait">
-              {!resume ? (
+              {isLoading ? (
+                <motion.div
+                  key="resume-loading"
+                  className="border-2 border-dashed border-border/50 rounded-lg p-12 text-center"
+                  initial={{ opacity: 0.6 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Loading resume details...
+                  </p>
+                </motion.div>
+              ) : !resume ? (
                 <motion.div
                   key="no-resume"
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -284,8 +310,12 @@ export default function ResumeManager() {
                           <span className="hidden sm:inline">•</span>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5" />
-                            <span>Updated {formatDate(resume.lastUpdated)}</span>
+                            <span>Updated {formattedResumeDate}</span>
                           </div>
+                          <span className="hidden sm:inline">•</span>
+                          <span className="text-xs uppercase tracking-wide">
+                            {resume.isActive ? "Active" : "Inactive"}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -332,7 +362,7 @@ export default function ResumeManager() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Resume?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete "{resume.fileName}"?
+                              Are you sure you want to delete &quot;{resume.fileName}&quot;?
                               This action cannot be undone and you will need to
                               upload a new resume.
                             </AlertDialogDescription>

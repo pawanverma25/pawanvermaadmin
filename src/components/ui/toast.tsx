@@ -76,7 +76,6 @@ function ToastContainer({
 }
 
 function Toast({
-  id,
   title,
   description,
   variant = "default",

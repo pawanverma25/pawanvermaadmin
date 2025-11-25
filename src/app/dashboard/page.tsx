@@ -2,12 +2,13 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
-import { User, Briefcase, GraduationCap, FolderOpen, FileText, LogOut } from "lucide-react";
+import { User, Briefcase, GraduationCap, FolderOpen, FileText, LogOut, Code } from "lucide-react";
 import ProfileForm from "./components/ProfileForm";
 import ProjectsManager from "./components/ProjectsManager";
 import ExperienceManager from "./components/ExperienceManager";
 import EducationManager from "./components/EducationManager";
 import ResumeManager from "./components/ResumeManager";
+import LaTeXEditor from "./components/LaTeXEditor";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,7 +16,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
-  const { logout, isAuthenticated, isLoading, user } = useAuth();
+  const { logout, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -86,7 +87,7 @@ export default function DashboardPage() {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-4 bg-card/30 border-border/30 h-10">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-4 bg-card/30 border-border/30 h-10">
               <TabsTrigger value="profile" className="data-[state=active]:text-accent text-xs md:text-sm">
                 <User className="mr-1.5 h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Profile</span>
@@ -106,6 +107,10 @@ export default function DashboardPage() {
               <TabsTrigger value="resume" className="data-[state=active]:text-accent text-xs md:text-sm">
                 <FileText className="mr-1.5 h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Resume</span>
+              </TabsTrigger>
+              <TabsTrigger value="latex" className="data-[state=active]:text-accent text-xs md:text-sm">
+                <Code className="mr-1.5 h-3.5 w-3.5" />
+                <span className="hidden sm:inline">LaTeX</span>
               </TabsTrigger>
             </TabsList>
 
@@ -127,6 +132,10 @@ export default function DashboardPage() {
 
             <TabsContent value="resume" className="mt-4">
               <ResumeManager />
+            </TabsContent>
+
+            <TabsContent value="latex" className="mt-4">
+              <LaTeXEditor />
             </TabsContent>
           </Tabs>
         </motion.div>

@@ -1,0 +1,52 @@
+import { apiFetch } from "./http";
+import {
+  ExperienceRequest,
+  PaginatedResponse,
+  WorkExperience,
+} from "@/types/api";
+import { DEFAULT_PAGE_SIZE } from "./config";
+
+export interface ExperienceQuery {
+  userId?: number;
+  page?: number;
+  size?: number;
+}
+
+const buildQuery = (query: Record<string, string | number | undefined>) => {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    params.set(key, String(value));
+  });
+  return params.toString();
+};
+
+export const experiencesApi = {
+  list({ userId, page = 0, size = DEFAULT_PAGE_SIZE }: ExperienceQuery) {
+    const query = buildQuery({ userId, page, size });
+    return apiFetch<PaginatedResponse<WorkExperience>>(
+      `/api/experiences?${query}`
+    );
+  },
+  getById(id: number) {
+    return apiFetch<WorkExperience>(`/api/experiences/${id}`);
+  },
+  create(payload: ExperienceRequest) {
+    return apiFetch<WorkExperience>("/api/experiences", {
+      method: "POST",
+      body: payload,
+    });
+  },
+  update(id: number, payload: Partial<ExperienceRequest>) {
+    return apiFetch<WorkExperience>(`/api/experiences/${id}`, {
+      method: "PUT",
+      body: payload,
+    });
+  },
+  delete(id: number) {
+    return apiFetch<void>(`/api/experiences/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
