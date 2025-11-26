@@ -48,17 +48,18 @@ import { useToast } from "@/components/ui/toast";
 
 const projectSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
+  techStack: z.string().min(3).refine((value) => value.split(",").length >= 1, {
+    message: "Please enter at least one technology",
+  }),
   description: z.string().min(10, "Description must be at least 10 characters"),
   githubLink: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
   liveLink: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
   featured: z.boolean(),
-  displayOrder: z.coerce
-    .number({
-      required_error: "Display order is required",
-      invalid_type_error: "Display order must be a number",
-    })
-    .int("Display order must be an integer")
-    .nonnegative("Display order must be positive"),
+  // Explicit number schema to align with resolver expectations
+  displayOrder: z
+    .number()
+    .int({ message: "Display order must be an integer" })
+    .nonnegative({ message: "Display order must be positive" }),
 });
 
 type ProjectFormValues = z.infer<typeof projectSchema>;
@@ -104,6 +105,7 @@ export default function ProjectsManager() {
     defaultValues: {
       title: "",
       description: "",
+      techStack: "",
       githubLink: "",
       liveLink: "",
       featured: false,
@@ -249,8 +251,8 @@ export default function ProjectsManager() {
         techStack: "",
         githubLink: "",
         liveLink: "",
-        image: "",
         featured: false,
+        displayOrder: 0,
       });
     }
   };

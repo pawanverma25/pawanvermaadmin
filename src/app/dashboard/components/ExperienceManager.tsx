@@ -51,16 +51,14 @@ const experienceSchema = z.object({
   designation: z.string().min(2, "Designation must be at least 2 characters"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().optional(),
-  isCurrent: z.boolean().default(false),
+  isCurrent: z.boolean(),
   description: z.string().min(10, "Description must be at least 10 characters"),
   location: z.string().optional(),
-  displayOrder: z.coerce
-    .number({
-      required_error: "Display order is required",
-      invalid_type_error: "Display order must be a number",
-    })
-    .int("Display order must be an integer")
-    .nonnegative("Display order must be positive"),
+  // Explicit number schema to ensure correct inference
+  displayOrder: z
+    .number()
+    .int({ message: "Display order must be an integer" })
+    .nonnegative({ message: "Display order must be positive" }),
 });
 
 type ExperienceFormValues = z.infer<typeof experienceSchema>;

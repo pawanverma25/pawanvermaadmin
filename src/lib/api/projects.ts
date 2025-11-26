@@ -32,13 +32,13 @@ export const projectsApi = {
   create(payload: ProjectRequest) {
     return apiFetch<Project>("/api/projects", {
       method: "POST",
-      body: payload,
+      body: payload as unknown as Record<string, unknown>,
     });
   },
   update(id: number, payload: Partial<ProjectRequest>) {
     return apiFetch<Project>(`/api/projects/${id}`, {
       method: "PUT",
-      body: payload,
+      body: payload as unknown as Record<string, unknown>,
     });
   },
   delete(id: number) {

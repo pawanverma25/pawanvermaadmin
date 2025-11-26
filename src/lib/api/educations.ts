@@ -32,13 +32,13 @@ export const educationsApi = {
   create(payload: EducationRequest) {
     return apiFetch<Education>("/api/educations", {
       method: "POST",
-      body: payload,
+      body: payload as unknown as Record<string, unknown>,
     });
   },
   update(id: number, payload: Partial<EducationRequest>) {
     return apiFetch<Education>(`/api/educations/${id}`, {
       method: "PUT",
-      body: payload,
+      body: payload as unknown as Record<string, unknown>,
     });
   },
   delete(id: number) {

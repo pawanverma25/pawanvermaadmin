@@ -2,49 +2,49 @@
 
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { educationsApi } from "@/lib/api/educations";
+import { Education } from "@/types/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useEffect, useCallback } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Edit, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Edit, Trash2 } from "lucide-react";
-import { Education } from "@/types/api";
-import { educationsApi } from "@/lib/api/educations";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/components/ui/toast";
 
 const educationSchema = z.object({
   institution: z.string().min(2, "Institution name must be at least 2 characters"),
@@ -52,16 +52,15 @@ const educationSchema = z.object({
   field: z.string().min(2, "Field of study must be at least 2 characters"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().optional(),
-  isCurrent: z.boolean().default(false),
+  // Keep this required to match the form type and resolver expectations
+  isCurrent: z.boolean(),
   description: z.string().optional(),
   location: z.string().optional(),
-  displayOrder: z.coerce
-    .number({
-      required_error: "Display order is required",
-      invalid_type_error: "Display order must be a number",
-    })
-    .int("Display order must be an integer")
-    .nonnegative("Display order must be positive"),
+  // Explicit number schema to ensure the resolver infers `number`
+  displayOrder: z
+    .number()
+    .int({ message: "Display order must be an integer" })
+    .nonnegative({ message: "Display order must be positive" }),
 });
 
 type EducationFormValues = z.infer<typeof educationSchema>;

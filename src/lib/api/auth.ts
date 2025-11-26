@@ -21,14 +21,14 @@ export const authApi = {
   signup(payload: SignupRequest) {
     return apiFetch<void>("/api/auth/signup", {
       method: "POST",
-      body: payload,
+      body: payload as unknown as Record<string, unknown>,
       requiresAuth: false,
     });
   },
   login(payload: LoginRequest) {
     return apiFetch<AuthTokens>("/api/auth/login", {
       method: "POST",
-      body: payload,
+      body: payload as unknown as Record<string, unknown>,
       requiresAuth: false,
     });
   },

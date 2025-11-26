@@ -34,13 +34,13 @@ export const experiencesApi = {
   create(payload: ExperienceRequest) {
     return apiFetch<WorkExperience>("/api/experiences", {
       method: "POST",
-      body: payload,
+      body: payload as unknown as Record<string, unknown>,
     });
   },
   update(id: number, payload: Partial<ExperienceRequest>) {
     return apiFetch<WorkExperience>(`/api/experiences/${id}`, {
       method: "PUT",
-      body: payload,
+      body: payload as unknown as Record<string, unknown>,
     });
   },
   delete(id: number) {
